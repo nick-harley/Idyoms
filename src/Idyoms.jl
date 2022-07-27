@@ -1,4 +1,4 @@
-module PPM
+module Idyoms
 
 export A, B, C, D, X
 export Interpolated, Backoff

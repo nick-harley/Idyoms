@@ -98,8 +98,8 @@ pitchvp = vp(:pitch)
 onsetvp = vp(:onset)
 ioivp = compose(link(onsetvp,delay(onsetvp,1)),(x,y)->x-y)
 
-filenames = readdir("nova")
-paths = map(fn->string("nova/",fn),filenames)
+filenames = readdir("nova-data")
+paths = map(fn->string("nova-data/",fn),filenames)
 data = loadmidi(paths)
 
 end
