@@ -2,7 +2,6 @@ module Nova
 
 using MIDI, DataFrames
 using Chakra
-using Viewpoints
 
 export data
 
