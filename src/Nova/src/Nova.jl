@@ -6,19 +6,21 @@ using Viewpoints
 
 export data
 
-function loadmidi(filepaths)
+function load_midi_corpus(id,path,filenames)
 
     df = DataFrame(id=[],particles=[],pitch=[],onset=[],duration=[],velocity=[])
-    
-    for fp in filepaths
 
-        file = readMIDIFile(fp)
+    fileids = []
+    
+    for fn in filenames
+
+        file = readMIDIFile(joinpath(path,"Nova/midi",fn))
 
         tracks = file.tracks
         trackids = []
         
         for (t,track) in enumerate(tracks)
-            trackid = string(fp,"/track",t)
+            trackid = string(id,"/",fn,"/track",t)
             push!(trackids,trackid)
 
             notes = getnotes(track,file.tpq)
@@ -50,7 +52,8 @@ function loadmidi(filepaths)
             
         end
 
-        fileid = fp
+        fileid = joinpath(id,fn)
+        push!(fileids,fileid)
         push!(df,Dict(:id=>fileid,
                       :particles=>trackids,
                       :pitch=>missing,
@@ -59,6 +62,15 @@ function loadmidi(filepaths)
                       :velocity=>missing))
         
     end
+
+    corpusid = "nova"
+    push!(df,Dict(:id=>corpusid,
+                  :particles=>fileids,
+                  :pitch=>missing,
+                  :onset=>missing,
+                  :duration=>missing,
+                  :velocity=>missing))
+    
     return df
     
 end
@@ -98,8 +110,9 @@ pitchvp = vp(:pitch)
 onsetvp = vp(:onset)
 ioivp = compose(link(onsetvp,delay(onsetvp,1)),(x,y)->x-y)
 
-filenames = readdir("nova-data")
-paths = map(fn->string("nova-data/",fn),filenames)
-data = loadmidi(paths)
+function load(path)
+    filenames = readdir(joinpath(path,"Nova/midi"))
+    return load_midi_corpus("nova",path,filenames)
+end
 
 end
