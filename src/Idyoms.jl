@@ -1,8 +1,9 @@
 module Idyoms
 
+export Bounded, Unbounded
+export View
 export A, B, C, D, X
 export Interpolated, Backoff
-export Bounded, Unbounded
 
 export generate_ngrams, generate_hgrams, hgram_sequence
 
