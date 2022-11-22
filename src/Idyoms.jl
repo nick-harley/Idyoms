@@ -212,6 +212,8 @@ function nsymcount(n::Int, c::Counter{T}) where {S,T}
     return length(nsymset(n,c))
 end
 
+
+
 ### ESCAPE METHODS
 
 abstract type Escape end
@@ -250,7 +252,7 @@ end
 
 
 
-# The TYPE OF TALLYS
+# THE TYPE OF TALLYS
 
 Tally{S,T} = Dict{Context{S},Counter{T}}
 
@@ -289,6 +291,9 @@ struct Interpolated <: Smoothing end
 
 struct Backoff <: Smoothing end
 
+
+
+### ESTIMATE PROBABILITY
 
 function estimate(nxt::T,
                   ctx::Context{S},
@@ -422,8 +427,55 @@ end
 
 
 
+# DISTRIBUTIONS
 
 Distribution{T} = Dict{T,Float64}
+
+domain(d::Distribution) = keys(d)
+
+normalise!(d::Distribution) = (total = sum(values(d)); map!(x->x/total,values(d)))
+
+(d::Distribution{T})(e::T) where T = Base.get(d,e,0)
+
+
+using Random
+
+function sample(dist::Distribution{T}) where T
+
+    # SAMPLE A DISTRIBUTION
+    
+    ps = shuffle(collect(dist))
+    a = first.(ps)
+    p = cumsum(last.(ps))
+    n = rand(Float64)
+    q = findfirst(q->n<=q,p)
+    return first(ps[q])
+end
+
+function estimate_dist(ctx::Context{S},
+                       tally::Tally{S,T},
+                       seen::Set{T},
+                       A::Set{T},
+                       B::Smoothing,
+                       E::Escape,
+                       U::Bool) where {S,T}
+
+    # ESTIMATE THE PROBABILITY DISTRIBUTION OVER ALPHABET A
+    
+    dist = Dict{T,Float64}()
+    ords = Dict{T,Int}()
+    for x in A
+        p, o = estimate(x,ctx,tally,seen,A,B,E,U)
+        dist[x] = p
+        ords[x] = o
+    end
+
+    normalise!(dist)
+    return dist, ords
+end
+
+
+### TYPE OF PREDICTION 
 
 struct Prediction{T}
     symbol::T
@@ -432,27 +484,19 @@ struct Prediction{T}
     distribution::Distribution{T}
 end
 
-domain(d::Distribution) = keys(d)
 
-normalise!(d::Distribution) = (total = sum(values(d)); map!(x->x/total,values(d)))
-
-(d::Distribution{T})(e::T) where T = Base.get(d,e,0)
 
 infcontent(d::Distribution{T},e::T) where T = - log(2,d(e))
 infcontent(x::Prediction) = infcontent(x.distribution,x.symbol)
 
-
 entropy(d::Distribution) = sum([d(e)*infcontent(d,e) for e in domain(d)])
 entropy(x::Prediction) = entropy(x.distribution)
-
 
 max_entropy(d::Distribution) = log(2,length(domain(d)))
 max_entropy(x::Prediction) = max_entropy(x.distribution)
 
-
 relative_entropy(d::Distribution) = (hm=max_entropy(d); hm>0 ? entropy(d) / hm : 1 )
 relative_entropy(x::Prediction) = relative_entropy(x.distribution)
-
 
 weight(d::Distribution,b::Int) = relative_entropy(d) ^ (-b)
 weight(x::Prediction,b::Int) = weight(x.distribution,b)
@@ -718,6 +762,64 @@ end
 
 
 
+
+
+# GENERATION
+
+function generate_next(ctx::Context{S},
+                       tally::Tally{S,T},
+                       seen::Set{T},
+                       A::Set{T},
+                       B::Smoothing,
+                       E::Escape,
+                       U::Bool) where {S,T}
+
+    dist, ords = estimate_dist(ctx,tally,seen,A,B,E,U)
+        
+    nxt = sample(dist)
+    
+    return Prediction(nxt,dist[nxt],ords[nxt],dist)
+end
+
+function getctx(seq::Vector{S},o::Bounded{h}) where {S,h}
+    length(seq) <= h && return @views seq[1:end]
+    return @views seq[end-h+1:end]
+end
+
+function getctx(seq::Vector{S},o::Unbounded) where S
+    return @views seq[1:end]
+end
+
+function generate_sequence(len::Int,
+                           tally::Tally{S,T},
+                           seen::Set{T},
+                           A::Set{T},
+                           B::Smoothing,
+                           E::Escape,
+                           U::Bool,
+                           O::Idyoms.OrderBound) where {S,T}
+
+    preds = Prediction{Tuple{Int,Int}}[]
+    seq = Tuple{Int,Int}[]
+    
+    for i in 1:len
+        ctx = getctx(seq,O)
+        p = generate_next(ctx,tally,seen,A,B,E,U,)
+        push!(preds,p)
+        push!(seq,p.symbol)
+    end
+    
+    return preds, seq
+end
+
+
+
+
+
+
+
+
+
 using DataFrames
 
 function todataframe(id::Int,ps::Vector{Prediction{T}}) where {T}
@@ -743,38 +845,6 @@ function todataframe(ps::Vector{Vector{Prediction{T}}}) where {T}
     vcat([todataframe(i,p) for (i,p) in enumerate(ps)]...)
 end
 
-
-# function getalphabet(data::Vector{View{S,T}})::Set{T} where {S,T}
-
-struct IdyomParameters
-    E::Escape
-    O::OrderBound
-end
-
-
-function getviews(seq::Vector,
-                  trg::Viewpoint{T},
-                  srcs::Vector{Viewpoint{S} where S}) where T
-
-    return map(s->View(seq,s,trg),srcs)   
-
-end
-
-
-function idyom(seq::Vector,
-               trg::Viewpoint{T},
-               srcs::Vector{Viewpoint{S} where S}) where T
-
-    # construct views
-
-    views = getviews(seq,trg,srcs)
-    
-    # construct models
-
-    # combine models
-    
-
-end
     
 # end of module
 end
