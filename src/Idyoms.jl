@@ -133,9 +133,13 @@ generate_hgrams(v::View,::Unbounded) = generate_hgrams(v)
 
 
 
+# TODO: Which of these functions is correct?
+# if a and b are 0, a/b is nan so return 0
+# if a/b is inf should it return 0 or 1?
 
-
-non_nan(a::Int,b::Int)::Float64 = (x = a/b; isnan(x) ? 0 : x)
+#non_nan(a::Int,b::Int)::Float64 = (x = a/b; isnan(x) ? 0 : x)
+#non_nan(a::Int,b::Int)::Float64 = (x = a/b; isnan(x) || isinf(x) ? 0 : x)
+non_nan(a::Int,b::Int)::Float64 = (x = a/b; isnan(x) ? 0 : isinf(x) ? 1 : x)
 
 
 
@@ -388,6 +392,41 @@ function estimate(nxt::T,
 end
 
 
+
+function select_order(ctx::Vector{S},
+                      tally::Tally{S,T},
+                      seen::Set{T},
+                      O::Bounded{h}) where {S,T,h}
+    length(ctx) <= h && return @views ctx[1:end]
+    return @views ctx[end-h+1:end]
+end
+
+function select_order(ctx::Vector{S},
+                      tally::Tally{S,T},
+                      seen::Set{T},
+                      O::Unbounded) where {S,T}
+
+    length(ctx) == 0 && return @views ctx[1:end]
+
+    for l in 0:length(ctx)
+
+        @views _ctx = ctx[end-l+1:end]
+
+        c = Base.get(tally,_ctx,Counter{T}(0))
+
+        tc = symcount(c)
+
+        tc == 1 && return _ctx 
+
+        tc == 0 && return @views _ctx[2:end]
+
+    end
+        
+    return ctx
+
+end
+
+
 function select_order(v::View{S,T},
                       i::Int,
                       tally::Tally{S,T},
@@ -442,7 +481,7 @@ using Random
 
 function sample(dist::Distribution{T}) where T
 
-    # SAMPLE A DISTRIBUTION
+    # SAMPLE DISTRIBUTION
     
     ps = shuffle(collect(dist))
     a = first.(ps)
@@ -475,7 +514,7 @@ function estimate_dist(ctx::Context{S},
 end
 
 
-### TYPE OF PREDICTION 
+### TYPE OF PREDICTIONS 
 
 struct Prediction{T}
     symbol::T
@@ -781,15 +820,6 @@ function generate_next(ctx::Context{S},
     return Prediction(nxt,dist[nxt],ords[nxt],dist)
 end
 
-function getctx(seq::Vector{S},o::Bounded{h}) where {S,h}
-    length(seq) <= h && return @views seq[1:end]
-    return @views seq[end-h+1:end]
-end
-
-function getctx(seq::Vector{S},o::Unbounded) where S
-    return @views seq[1:end]
-end
-
 function generate_sequence(len::Int,
                            tally::Tally{S,T},
                            seen::Set{T},
@@ -797,13 +827,13 @@ function generate_sequence(len::Int,
                            B::Smoothing,
                            E::Escape,
                            U::Bool,
-                           O::Idyoms.OrderBound) where {S,T}
+                           O::OrderBound) where {S,T}
 
     preds = Prediction{Tuple{Int,Int}}[]
     seq = Tuple{Int,Int}[]
     
     for i in 1:len
-        ctx = getctx(seq,O)
+        ctx = select_order(seq,tally,seen,O)
         p = generate_next(ctx,tally,seen,A,B,E,U,)
         push!(preds,p)
         push!(seq,p.symbol)
