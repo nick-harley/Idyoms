@@ -267,7 +267,7 @@ function typecount(::D, c::Counter{T}) where T
 end
 
 function typecount(::X, c::Counter{T}) where T
-    return nsymcount(1,ctx,tally,seen)+1
+    return nsymcount(1,c)+1
 end
 
 
