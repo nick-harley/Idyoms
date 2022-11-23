@@ -342,7 +342,6 @@ function estimate(nxt::T,
     return e * p, o
 end
 
-# PPM INTERPOLATED
 function estimate(nxt::T,
                   ctx::Context{S},
                   tally::Tally{S,T},
@@ -353,6 +352,8 @@ function estimate(nxt::T,
                   U::Bool,
                   ex::Set{T}=Set{T}()) where {S,T}
 
+    # ESTIMATE PROBABILITY WITH INTERPOLATED SMOOTHING
+    
     n = length(ctx)
     
     k = ppmk(E)
@@ -397,6 +398,9 @@ function select_order(ctx::Vector{S},
                       tally::Tally{S,T},
                       seen::Set{T},
                       O::Bounded{h}) where {S,T,h}
+
+    # RETURN BOUNDED CONTEXT
+    
     length(ctx) <= h && return @views ctx[1:end]
     return @views ctx[end-h+1:end]
 end
@@ -406,6 +410,8 @@ function select_order(ctx::Vector{S},
                       seen::Set{T},
                       O::Unbounded) where {S,T}
 
+    # RETURN UNBOUNDED CONTEXT
+    
     length(ctx) == 0 && return @views ctx[1:end]
 
     for l in 0:length(ctx)
@@ -416,8 +422,10 @@ function select_order(ctx::Vector{S},
 
         tc = symcount(c)
 
+        # RETURN SHORTEST DETERMINISTIC CONTEXT
         tc == 1 && return _ctx 
 
+        # OR, RETURN THE LONGEST MATCHING CONTEXT
         tc == 0 && return @views _ctx[2:end]
 
     end
@@ -432,6 +440,9 @@ function select_order(v::View{S,T},
                       tally::Tally{S,T},
                       seen::Set{T},
                       O::Bounded{h}) where {S,T,h}
+    
+    # RETURN BOUNDED NGRAM i FROM VIEW v
+    
     return getngram(v,i,h)
 end
 
@@ -442,6 +453,8 @@ function select_order(v::View{S,T},
                       seen::Set{T},
                       O::Unbounded) where {S,T}
 
+    # RETURN UNBOUNDED NGRAM AT i FROM VIEW v
+    
     nxt, ctx = getngram(v,i)
 
     length(ctx) == 0 && return nxt, ctx
@@ -454,8 +467,10 @@ function select_order(v::View{S,T},
 
         tc = symcount(c)
 
+        # RETURN SHORTEST DETERMINISTIC CONTEXT
         tc == 1 && return nxt,_ctx 
 
+        # OR, RETURN LONGEST MATCHING CONTEXT
         tc == 0 && return @views nxt, _ctx[2:end]
 
     end
@@ -466,14 +481,17 @@ end
 
 
 
-# DISTRIBUTIONS
+### TYPE OF PROBABILITY DISTRIBUTIONS
 
 Distribution{T} = Dict{T,Float64}
 
+# GET ALPHABET OF DISTRIBUTION
 domain(d::Distribution) = keys(d)
 
+# NORMALISE A DISTRIBUTION
 normalise!(d::Distribution) = (total = sum(values(d)); map!(x->x/total,values(d)))
 
+# LOOKUP PROBABILITY OF ELEMENT
 (d::Distribution{T})(e::T) where T = Base.get(d,e,0)
 
 
@@ -481,7 +499,7 @@ using Random
 
 function sample(dist::Distribution{T}) where T
 
-    # SAMPLE DISTRIBUTION
+    # RETURN A RANDOM ELEMENT OF DISTRIBUTION
     
     ps = shuffle(collect(dist))
     a = first.(ps)
@@ -525,25 +543,32 @@ end
 
 
 
+# INFORMATION CONTENT OF AN ELEMENT FROM A DISTRIBUTION
 infcontent(d::Distribution{T},e::T) where T = - log(2,d(e))
 infcontent(x::Prediction) = infcontent(x.distribution,x.symbol)
 
+# ENTROPY OF A DISTRIBUTION
 entropy(d::Distribution) = sum([d(e)*infcontent(d,e) for e in domain(d)])
 entropy(x::Prediction) = entropy(x.distribution)
 
+# MAX ENTROPY OF A DISTRIBUTION
 max_entropy(d::Distribution) = log(2,length(domain(d)))
 max_entropy(x::Prediction) = max_entropy(x.distribution)
 
+# RELATIVE ENTROPY OF A DISTRIBUTION
 relative_entropy(d::Distribution) = (hm=max_entropy(d); hm>0 ? entropy(d) / hm : 1 )
 relative_entropy(x::Prediction) = relative_entropy(x.distribution)
 
+# CALCULATE WEIGHT OF A DISTRIBUTION
 weight(d::Distribution,b::Int) = relative_entropy(d) ^ (-b)
 weight(x::Prediction,b::Int) = weight(x.distribution,b)
 
 
-function combine(ds::Vector{Distribution{T}},
-                 b::Int=0) where T
+function combine_dist(ds::Vector{Distribution{T}},
+                      b::Int=0) where T
 
+    # RETURN WEIGHTED COMBINATION OF DISTRIBUTIONS
+    
     A = union([domain(d) for d in ds]...)
 
     ws = [weight(d,b) for d in ds]
@@ -553,33 +578,46 @@ function combine(ds::Vector{Distribution{T}},
     estimates = [(e=>sum([ws[m] * ds[m](e) for m in 1:length(ds)]) / sum_weights) for e in A]
 
     dist = Distribution{T}(estimates)
+
     normalise!(dist)
     
     return dist
     
 end
 
-function combine(ps::Vector{Prediction{T}},
-                 b::Int=0) where T
+function combine_dist(ps::Vector{Prediction{T}},
+                      b::Int=0) where T
+
+    # RETURN WEIGHTED COMBINATION OF PREDICTION DISTRIBUTIONS
     
     sym = ps[1].symbol
+
     ds = [p.distribution for p in ps]
+
     os = [p.order for p in ps]
-    new_dist = combine(ds,b)
+
+    new_dist = combine_dist(ds,b)
+
     p = new_dist(sym)
+
     o = max(os...)
+
     Prediction(sym,p,o,new_dist)
 end
 
 
 function mean_infcontent(ps::Vector{Prediction{T}}) where T
 
+    # RETURN MEAN INFORMATION CONTENT OF A SEQUENCE OF PREDICTIONS
+    
     return sum([infcontent(p) for p in ps])/length(ps)
 
 end
 
 function mean_infcontent(pss::Vector{Vector{Prediction{T}}}) where T
 
+    # RETURN MEAN INFORMATION CONTENT OF A SET OF PREDICTION SEQUENCES
+    
     return sum([mean_infcontent(ps) for ps in pss])/length(pss)
 
 end
@@ -596,15 +634,9 @@ function ppm(nxt::T,
              E::Escape,
              U::Bool) where {S,T}
 
-    dist = Dict{T,Float64}()
-    ords = Dict{T,Int}()
-    for e in A
-        p, o = estimate(e,ctx,tally,seen,A,B,E,U)
-        dist[e] = p
-        ords[e] = o
-    end
-
-    normalise!(dist)
+    # RETURN PPM PREDICTION FOR AN ELEMENT IN A CONTEXT
+    
+    dist, ords = estimate_dist(ctx,tally,seen,A,B,E,U)
     
     return Prediction(nxt,dist[nxt],ords[nxt],dist)
     
@@ -619,15 +651,17 @@ function ppm_seq(v::View{S,T},
                  U::Bool,
                  O::OrderBound) where {S,T}
 
-    # MODEL A SEQUENCE
+    # RETURN PPM PREDICTION SEQUENCE FOR THE ELEMENTS OF A VIEW
     
     predictions = Prediction{T}[]
     
     for i in 1:length(v)
+
+        # SELECT iTH NGRAM CONTEXT LENGTH
         nxt,ctx = select_order(v,i,tally,seen,O)
-        pred = ppm(nxt,ctx,tally,seen,A,B,E,U)
-        push!(predictions,pred)
-        #push!(predictions,ppm(select_order(v,i,tally,seen,O)...,tally,seen,A,B,E,U))
+
+        # PREDICT iTH ELEMENT
+        push!(predictions,ppm(nxt,ctx,tally,seen,A,B,E,U))
     end
     
     return predictions
@@ -643,14 +677,22 @@ function ppm_seq_inc(v::View{S,T},
                      tally = emptytally(S,T),
                      seen = Set{T}()) where {S,T,h}
 
-    # MODEL A SEQUENCE INCREMENTALLY
+    # RETURN PPM PREDICTION SEQUENCE FOR A VIEW WITH INCREMENTAL TALLY UPDATE
     
     predictions = Prediction{T}[]
     
     for i in 1:length(v)
+
+        # SELECT iTH NGRAM CONTEXT LENGTH
         nxt, ctx = select_order(v,i,tally,seen,O)
+
+        # PREDICT iTH ELEMENT
         push!(predictions,ppm(nxt,ctx,tally,seen,A,B,E,U))
+
+        # UPDATE NGRAM TALLY
         updatetally(tally,getngram(v,i)...)
+
+        # UPDATE SEEN ELEMENT SET
         push!(seen,nxt)
     end
     
@@ -660,14 +702,14 @@ end
 
 
 
-# DATASET MANAGEMENT
-
-
+### DATASET MANAGEMENT
 
 function folddataset(data::Vector{View{S,T}},
                      nfolds::Int) where {S,T}
 
-    # PARTITION DATASET INTO N FOLDS
+    # RETURN FOLD INDEXES AND TRAINING SETS FOR EACH FOLD
+    
+    # PARTITION DATASET INTO N FOLDS:
 
     size = length(data)
     
@@ -675,14 +717,16 @@ function folddataset(data::Vector{View{S,T}},
         error("The number of folds must be less than the size of the data set size.")
     end
 
-    # ASSIGN EACH VIEW TO A FOLD
+    # ASSIGN EACH SEQUENCE VIEW TO A FOLD:
+    
     folds = Int[Int(round(i/nfolds % 1 *nfolds)) for i in 1:size]
     
     folds[findall(x->x==0,folds)] .= nfolds
 
     folds = sort(folds)
 
-    # CREATE A TRAINING SET FOR EACH FOLD
+    # CREATE A TRAINING SET FOR EACH FOLD:
+    
     training_sets = Vector{View{S,T}}[data[findall(x->x != i,folds)] for i in 1:nfolds]
     
     return folds, training_sets
@@ -692,12 +736,18 @@ end
 function train(data::Vector{View{S,T}},
                O::OrderBound) where {S,T}
 
-    # CREATE A TALLY FROM A SET OF VIEWS
+    # RETURN An NGRAM TALLY AND A SET OF SEEN ELEMENTS FOR A SET OF VIEWS
+    
+    # GENERATE ALL NGRAMS:
     
     gs = vcat([generate_hgrams(ex,O) for ex in data]...)
 
+    # GENERATE SET OF SEEN ELEMENTS:
+    
     seen = Set([g.first for g in gs])
 
+    # TALLY NGRAMS:
+    
     tally = maketally(gs)
 
     return tally, seen
@@ -707,7 +757,6 @@ end
 
 # BUILD MODELS
 
-
 function ppm_stm(data::Vector{View{S,T}},
                  A::Set{T},
                  B::Smoothing,
@@ -715,7 +764,7 @@ function ppm_stm(data::Vector{View{S,T}},
                  U::Bool,
                  O::OrderBound) where {S,T}
 
-    # STM
+    # RETURN SHORT-TERM MODEL (STM) PREDICTIONS FOR A DATASET:
     
     return Vector{Prediction{T}}[ppm_seq_inc(v,A,B,E,U,O) for v in data]
 
@@ -730,12 +779,15 @@ function ppm_ltm(data::Vector{View{S,T}},
                  O::OrderBound,
                  nfolds::Int=10)::Vector{Vector{Prediction{T}}} where {S,T}
 
-    # LTM
+    # RETURN LONG-TERM MODEL (LTM) PREDICTIONS FOR A DATASET:
 
+    # FOLD DATASET:
+    
     folds, training = folddataset(data,nfolds)
+
+    # CREATE NGRAM TALLIES AND SEEN ELEMENTS FOR EACH FOLD:
     
     db = [train(t,O) for t in training]
-
     tally = first.(db)
     seen = last.(db)
 
@@ -752,13 +804,19 @@ function ppm_ltm_plus(data::Vector{View{S,T}},
                       O::OrderBound,
                       nfolds::Int=10) where {S,T}
 
-    # FIX: LTM+
+    # RETURN LONG-TERM MODEL WITH INCREMENTAL UPDATE (LTM+) PREDICTIONS FOR A DATASET
 
+    # FOLD DATASET:
+    
     folds, training = folddataset(data,nfolds)
 
+    # CREATE NGRAM TALLIES AND SEEN ELEMENTS FOR EACH FOLD:
+    
     db = [train(t,O) for t in training]
-    # Should fresh tallies be used for each test set? 
-    return Vector{Prediction{T}}[ppm_seq_inc(data[i],A,B,E,U,O; tally = db[folds[i]][1], seen = db[folds[i]][2]) for i in 1:length(data)]
+
+    # TODO: SHOULD FRESH TALLIES BE USED FOR EACH TEST SET?
+
+    return Vector{Prediction{T}}[ppm_seq_inc(data[i],A,B,E,U,O;tally=db[folds[i]][1],seen=db[folds[i]][2]) for i in 1:length(data)]
 end
 
 
@@ -772,12 +830,12 @@ function ppm_both(data::Vector{View{S,T}},
                   nfolds::Int=10,
                   b::Int=0) where {S,T}
 
-    # FIX: LTM-STM 
+    # RETURN COMBINED LTM AND STM PREDICTIONS FOR A DATASET
     
     stm = ppm_stm(data,A,B,E,U,O)
     ltm = ppm_ltm(data,A,B,E,U,O,nfolds)
 
-    return [[combine(Prediction{T}[p1,p2],b) for (p1,p2) in zip(s,l)] for (s,l) in zip(stm,ltm)]
+    return [[combine_dist(Prediction{T}[p1,p2],b) for (p1,p2) in zip(s,l)] for (s,l) in zip(stm,ltm)]
 end
 
 function ppm_both_plus(data::Vector{View{S,T}},
@@ -789,12 +847,12 @@ function ppm_both_plus(data::Vector{View{S,T}},
                        nfolds::Int=10,
                        b::Int=0) where {S,T}
 
-    # FIX: LTM+-STM
+    # RETURN COMBINED LTM+ AND STM PREDICTIONS FOR A DATASET
     
     stm = ppm_stm(data,A,B,E,U,O)
     ltm = ppm_ltm_plus(data,A,B,E,U,O,nfolds)
 
-    return [[combine(Prediction{T}[p1,p2],b) for (p1,p2) in zip(s,l)] for (s,l) in zip(stm,ltm)]
+    return [[combine_dist(Prediction{T}[p1,p2],b) for (p1,p2) in zip(s,l)] for (s,l) in zip(stm,ltm)]
 end
 
 
@@ -803,40 +861,80 @@ end
 
 
 
-# GENERATION
+### GENERATION
 
-function generate_next(ctx::Context{S},
-                       tally::Tally{S,T},
-                       seen::Set{T},
-                       A::Set{T},
-                       B::Smoothing,
-                       E::Escape,
-                       U::Bool) where {S,T}
-
+function gen(ctx::Context{S},
+             tally::Tally{S,T},
+             seen::Set{T},
+             A::Set{T},
+             B::Smoothing,
+             E::Escape,
+             U::Bool) where {S,T}
+    
+    # RETURN A RANDOM ELEMENT FROM TEH DISTRIBUTION GENERATED BY THE CONTEXT
+    
     dist, ords = estimate_dist(ctx,tally,seen,A,B,E,U)
-        
+    
     nxt = sample(dist)
     
     return Prediction(nxt,dist[nxt],ords[nxt],dist)
 end
 
-function generate_sequence(len::Int,
-                           tally::Tally{S,T},
-                           seen::Set{T},
-                           A::Set{T},
-                           B::Smoothing,
-                           E::Escape,
-                           U::Bool,
-                           O::OrderBound) where {S,T}
+function gen_seq(len::Int,
+                 tally::Tally{T,T},
+                 seen::Set{T},
+                 A::Set{T},
+                 B::Smoothing,
+                 E::Escape,
+                 U::Bool,
+                 O::OrderBound) where T
 
-    preds = Prediction{Tuple{Int,Int}}[]
-    seq = Tuple{Int,Int}[]
+    # RETURN A SEQUENCE OF LENGTH len OF RANDOM ELEMENTS
+    
+    preds = Prediction{T}[]
+    seq = T[]
     
     for i in 1:len
         ctx = select_order(seq,tally,seen,O)
-        p = generate_next(ctx,tally,seen,A,B,E,U,)
+        p = gen(ctx,tally,seen,A,B,E,U,)
         push!(preds,p)
         push!(seq,p.symbol)
+    end
+    
+    return preds, seq
+end
+
+function gen_seq_inc(len::Int,
+                     A::Set{T},
+                     B::Smoothing,
+                     E::Escape,
+                     U::Bool,
+                     O::OrderBound,
+                     tally::Tally{T,T} = emptytally(T,T),
+                     seen::Set{T} = Set{T}()) where T
+
+    # RETURN A SEQUENCE OF LENGTH len OF RANDOM ELEMENTS WITH INCREMENTAL UPDATE
+    
+    preds = Prediction{T}[]
+    seq = T[]
+    
+    for i in 1:len
+
+        # SELECT PREDICTION ORDER
+        ctx = select_order(seq,tally,seen,O)
+
+        # GENERATE NEXT ELEMENT
+        p = gen(ctx,tally,seen,A,B,E,U,)
+
+        # UPDATE SEQUENCE
+        push!(preds,p)
+        push!(seq,p.symbol)
+
+        # UPDATE NGRAM TALLY
+        updatetally(tally,getngram(v,i)...)
+
+        # UPDATE SEEN ELEMENT SET
+        push!(seen,nxt)
     end
     
     return preds, seq
@@ -848,11 +946,14 @@ end
 
 
 
-
+### DATAFRAMES
 
 using DataFrames
 
 function todataframe(id::Int,ps::Vector{Prediction{T}}) where {T}
+
+    # RETURN A DATAFRAME GENERATED FROM A SEQUENCE OF PREDICTIONS
+    
     seqid = repeat([id],length(ps))
     eventid = [1:length(ps)...]
     sym = [p.symbol for p in ps]
@@ -872,6 +973,9 @@ function todataframe(id::Int,ps::Vector{Prediction{T}}) where {T}
 end
 
 function todataframe(ps::Vector{Vector{Prediction{T}}}) where {T}
+
+    # RETURN A DATAFRAME GENERATED FROM A LIST OF PREDICTION SEQUENCES
+    
     vcat([todataframe(i,p) for (i,p) in enumerate(ps)]...)
 end
 
