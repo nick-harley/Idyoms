@@ -7,7 +7,7 @@ Idyoms is a Julia implementation of [IDyOM](https://github.com/mtpearce/idyom) (
 
 `pkg> add "https://github.com/nick-harley/Idyoms.git"`
 
-##### Demonstration Notebooks:
+##### Demonstration Notebooks
 
 Introduction: <https://nbviewer.org/github/nick-harley/Idyoms/blob/main/Introduction.ipynb>
 
