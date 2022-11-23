@@ -55,8 +55,8 @@ struct View{S,T}
 
         # CONSTRUCT VIEW FROM SOURCE AND TARGET SEQUENCES
         
-        t = last.(elems) # target sequence
-        s = first.(elems) # source sequence
+        t = last.(elems) # target sequence including none
+        s = first.(elems) # source sequence including none
         tind = findall(x->x != none,t) # indices of target attribtues 
         sind = findall(x->x != none,s) # indices of source attribtues
         telems = t[tind] # target attribtues
@@ -82,31 +82,47 @@ function Base.length(v::View)
     length(v.targetindex)
 
 end
-    
-function getnext(v::View{S,T},i::Int) where {S,T}
 
-    # ITH TARGET ATTRIBTUE FROM VIEW
+function get_alphabet(v::Viewpoint{T},s::Vector{Chakra.Constituent})::Set{T} where T
+
+    # RETURN THE VIEWPOINT ALPHABET OF A SEQUENCE
     
-    return v.targetelements[i]
+    return Set(filter(e->e!=none,vp_map(v,s)))
+
 end
 
-function getcontext(v::View{S,T},i::Int) where {S,T}
+function get_alphabet(v::Viewpoint{T},ss::Vector{Vector{Chakra.Constituent}})::Set{T} where T
 
-    # ITH CONTEXT FROM VIEW
+    # RETURN THE VIEWPOINT ALPHABET OF A VECTOR OF SEQUENCES
     
-    return @views v.sourceelements[1:findfirst(s->s==v.targetindex[i],v.sourceindex)-1]
+    return union([get_alphabet(v,s) for s in ss]...)
+
+end
+    
+function getnext(v::View{S,T},i::Int)::T where {S,T}
+
+    # iTH TARGET ATTRIBUTE FROM VIEW
+    
+    return v.target[v.targetindex[i]]
+end
+
+function getcontext(v::View{S,T},i::Int)::Context{S} where {S,T}
+
+    # iTH CONTEXT FROM VIEW
+
+    return @views v.sourceelements[1:length(findall(j->j<v.targetindex[i],v.sourceindex))]
 end
 
 function getngram(v::View{S,T},i::Int) where {S,T}
 
-    # ITH TARGET-CONTEXT PAIR FROM VIEW 
+    # iTH TARGET-CONTEXT PAIR FROM VIEW 
     
     return getnext(v,i) => getcontext(v,i)
 end
 
 function getngram(v::View{S,T},i::Int,n::Int) where {S,T}
 
-    # ITH N-GRAM FROM VIEW
+    # iTH N-GRAM FROM VIEW
     
     return getnext(v,i) => trim(getcontext(v,i),n-1)
 end
@@ -209,7 +225,7 @@ function nsymset(n::Int, c::Counter{T}) where T
     return Set([e for e in keys(c) if count(c,e) == n])
 end
 
-function nsymcount(n::Int, c::Counter{T}) where {S,T}
+function nsymcount(n::Int, c::Counter{T}) where T
 
     # NUMBER OF SYMBOLS COUNTED N TIMES
     
@@ -255,35 +271,43 @@ function typecount(::X, c::Counter{T}) where T
 end
 
 
+### NGRAM TALLIES
 
-# THE TYPE OF TALLYS
-
+# THE TYPE OF NGRAM TALLIES
 Tally{S,T} = Dict{Context{S},Counter{T}}
 
+
+# CONSTRUCT AN EMPTY TALLY
 emptytally(S,T) = Tally{S,T}()
 
-function incrementtally(tally::Tally{S,T},nxt::T,ctx::Context{S}) where {S,T}
+function incrementtally!(tally::Tally{S,T},nxt::T,ctx::Context{S}) where {S,T}
+
+    # INCREMENT A TALLY WITH NGRAM
+    
     Base.get!(tally,ctx,Counter{T}(0))[nxt] += 1
 end
 
 function maketally(gs::Vector{Pair{T,Context{S}}}) where {S,T}
+
+    # RERURN A NEW TALLY CONSTRUCTED FROM A VECTOR OF NGRAMS
+    
     tally = emptytally(S,T)
+    
     for p in gs
-        incrementtally(tally,p...)
+        incrementtally!(tally,p...)
     end
+    
     return tally
 end
 
 function updatetally(tally::Tally{S,T},nxt::T,ctx::Context{S}) where {S,T}
+
+    # INCREMENT A TALLY WITH ALL NGRAMS
+    
     for n in 0:length(ctx)
-        incrementtally(tally,nxt,trim(ctx,n))
+        incrementtally!(tally,nxt,trim(ctx,n))
     end
 end
-
-
-
-
-
 
 
 
@@ -521,6 +545,7 @@ function estimate_dist(ctx::Context{S},
     
     dist = Dict{T,Float64}()
     ords = Dict{T,Int}()
+
     for x in A
         p, o = estimate(x,ctx,tally,seen,A,B,E,U)
         dist[x] = p
@@ -528,6 +553,7 @@ function estimate_dist(ctx::Context{S},
     end
 
     normalise!(dist)
+
     return dist, ords
 end
 
@@ -606,6 +632,27 @@ function combine_dist(ps::Vector{Prediction{T}},
 end
 
 
+Model{T} = Vector{Vector{Prediction{T}}}
+
+
+function combine_predictions(ps::Vector{Vector{Prediction{T}}},b::Int) where T
+
+    # COMBINE SEQUENCE PREDICTIONS
+    
+    return Prediction{T}[Idyoms.combine_dist([ep...],b) for ep in zip(ps...)]
+
+end
+
+function combine_predictions(pss::Vector{Vector{Vector{Prediction{T}}}},b::Int) where T
+
+    # COMBINE A VECTOR OF SEQUENCE PREDICTIONS
+    
+    return Vector{Prediction{T}}[combine_predictions([ps...],b) for ps in zip(pss...)]
+    
+end
+
+
+
 function mean_infcontent(ps::Vector{Prediction{T}}) where T
 
     # RETURN MEAN INFORMATION CONTENT OF A SEQUENCE OF PREDICTIONS
@@ -640,6 +687,11 @@ function ppm(nxt::T,
     
     return Prediction(nxt,dist[nxt],ords[nxt],dist)
     
+end
+
+struct ViewModel{S,T}
+    view::View{S,T}
+    predictions::Vector{Prediction{T}}
 end
 
 function ppm_seq(v::View{S,T},
@@ -710,7 +762,6 @@ function folddataset(data::Vector{View{S,T}},
     # RETURN FOLD INDEXES AND TRAINING SETS FOR EACH FOLD
     
     # PARTITION DATASET INTO N FOLDS:
-
     size = length(data)
     
     if !(0 < nfolds <= size)
@@ -718,7 +769,6 @@ function folddataset(data::Vector{View{S,T}},
     end
 
     # ASSIGN EACH SEQUENCE VIEW TO A FOLD:
-    
     folds = Int[Int(round(i/nfolds % 1 *nfolds)) for i in 1:size]
     
     folds[findall(x->x==0,folds)] .= nfolds
@@ -726,7 +776,6 @@ function folddataset(data::Vector{View{S,T}},
     folds = sort(folds)
 
     # CREATE A TRAINING SET FOR EACH FOLD:
-    
     training_sets = Vector{View{S,T}}[data[findall(x->x != i,folds)] for i in 1:nfolds]
     
     return folds, training_sets
@@ -736,18 +785,15 @@ end
 function train(data::Vector{View{S,T}},
                O::OrderBound) where {S,T}
 
-    # RETURN An NGRAM TALLY AND A SET OF SEEN ELEMENTS FOR A SET OF VIEWS
+    # RETURN AN NGRAM TALLY AND A SET OF SEEN ELEMENTS FOR A SET OF VIEWS
     
-    # GENERATE ALL NGRAMS:
-    
+    # GENERATE ALL NGRAMS: 
     gs = vcat([generate_hgrams(ex,O) for ex in data]...)
 
-    # GENERATE SET OF SEEN ELEMENTS:
-    
+    # GENERATE SET OF SEEN ELEMENTS:    
     seen = Set([g.first for g in gs])
 
-    # TALLY NGRAMS:
-    
+    # TALLY NGRAMS:  
     tally = maketally(gs)
 
     return tally, seen
@@ -782,11 +828,9 @@ function ppm_ltm(data::Vector{View{S,T}},
     # RETURN LONG-TERM MODEL (LTM) PREDICTIONS FOR A DATASET:
 
     # FOLD DATASET:
-    
     folds, training = folddataset(data,nfolds)
 
     # CREATE NGRAM TALLIES AND SEEN ELEMENTS FOR EACH FOLD:
-    
     db = [train(t,O) for t in training]
     tally = first.(db)
     seen = last.(db)

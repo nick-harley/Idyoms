@@ -11,10 +11,15 @@ Idyoms is a Julia implementation of [IDyOM](https://github.com/mtpearce/idyom) (
 
 Introduction: <https://nbviewer.org/github/nick-harley/Idyoms/blob/main/Introduction.ipynb>
 
-Comparison with original IDyOM: <https://nbviewer.org/github/nick-harley/Idyoms/blob/main/Idyoms.ipynb>
+Comparison with original IDyOM: <https://nbviewer.org/github/nick-harley/Idyoms/blob/main/IDyOMComparison.ipynb>
 
 Music Generation: <https://nbviewer.org/github/nick-harley/Idyoms/blob/main/MusicGeneration.ipynb>
 
+##### IDyOM website
+
+https://www.marcus-pearce.com/idyom/
+
 ##### References
 
-Pearce, M. T. (2005). THE CONSTRUCTION AND EVALUATION OF STATISTICAL MODELS OF MELODIC STRUCTURE IN MUSIC PERCEPTION AND COMPOSITION. PhD Thesis.
+Pearce, M. T. (2005). _The Construction and Evaluation of Statistical Models of Melodic Structure in Music Perception and Composition_. PhD Thesis.
+
