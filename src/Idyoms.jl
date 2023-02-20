@@ -87,7 +87,7 @@ function get_alphabet(v::Viewpoint{T},s::Vector{Chakra.Constituent})::Set{T} whe
 
     # RETURN THE VIEWPOINT ALPHABET OF A SEQUENCE
     
-    return Set(filter(e->e!=none,vp_map(v,s)))
+    return Set{T}(filter(e->e!=none,vp_map(v,s)))
 
 end
 
@@ -208,7 +208,7 @@ function symset(c::Counter{T}) where T
 
     # SET OF SYMBOLS COUNTED
     
-    return Set(keys(c))
+    return Set{T}(keys(c))
 end
 
 function symcount(c::Counter{T}) where T
@@ -222,7 +222,7 @@ function nsymset(n::Int, c::Counter{T}) where T
 
     # SET OF SYMBOLS COUNTED N TIMES
     
-    return Set([e for e in keys(c) if count(c,e) == n])
+    return Set{T}([e for e in keys(c) if count(c,e) == n])
 end
 
 function nsymcount(n::Int, c::Counter{T}) where T
@@ -791,7 +791,7 @@ function train(data::Vector{View{S,T}},
     gs = vcat([generate_hgrams(ex,O) for ex in data]...)
 
     # GENERATE SET OF SEEN ELEMENTS:    
-    seen = Set([g.first for g in gs])
+    seen = Set{T}([g.first for g in gs])
 
     # TALLY NGRAMS:  
     tally = maketally(gs)
