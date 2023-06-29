@@ -1,4 +1,4 @@
-module AutomaticViewpointSelection.jl
+module AutomaticViewpointSelection
 
 using Chakra
 using Charm
