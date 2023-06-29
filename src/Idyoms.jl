@@ -984,12 +984,6 @@ function gen_seq_inc(len::Int,
     return preds, seq
 end
 
-
-
-
-
-
-
 ### DATAFRAMES
 
 using DataFrames
@@ -1023,6 +1017,7 @@ function todataframe(ps::Vector{Vector{Prediction{T}}}) where {T}
     vcat([todataframe(i,p) for (i,p) in enumerate(ps)]...)
 end
 
+include("AutomaticViewpointSelection.jl")
     
 # end of module
 end
