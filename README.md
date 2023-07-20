@@ -15,6 +15,10 @@ Comparison with original IDyOM: <https://nbviewer.org/github/nick-harley/Idyoms/
 
 Music Generation: <https://nbviewer.org/github/nick-harley/Idyoms/blob/main/MusicGeneration.ipynb>
 
+##### Contributors
+
+- Module AutomaticViewpointSelection.jl is authored by Ardavan Khalij, https://github.com/ArdavanKhalij
+
 ##### IDyOM website
 
 https://www.marcus-pearce.com/idyom/
