@@ -3,7 +3,6 @@ module AutomaticViewpointSelection
 # Module authored by Ardavan Khalij, https://github.com/ArdavanKhalij
 
 using Chakra
-using Charm
 using ..Idyoms
 using Combinatorics
 using LinearAlgebra
