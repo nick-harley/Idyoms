@@ -31,7 +31,7 @@ struct Unbounded <: OrderBound end
 
 Context{S} = SubArray{S, 1, Vector{S}, Tuple{UnitRange{Int64}}, true}
 
-function trim(ctx::Context{S},l::Int) where {S,T}
+function trim(ctx::Context{S},l::Int) where S
 
     # TRIM CONTEXT TO MAX LENGTH L
     
@@ -727,7 +727,7 @@ function ppm_seq_inc(v::View{S,T},
                      U::Bool,
                      O::OrderBound;
                      tally = emptytally(S,T),
-                     seen = Set{T}()) where {S,T,h}
+                     seen = Set{T}()) where {S,T}
 
     # RETURN PPM PREDICTION SEQUENCE FOR A VIEW WITH INCREMENTAL TALLY UPDATE
     
