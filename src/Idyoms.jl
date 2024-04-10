@@ -467,7 +467,7 @@ function select_order(v::View{S,T},
     
     # RETURN BOUNDED NGRAM i FROM VIEW v
     
-    return getngram(v,i,h)
+    return getngram(v,i,h+1)
 end
 
 
