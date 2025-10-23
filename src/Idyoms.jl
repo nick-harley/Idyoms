@@ -969,13 +969,14 @@ function gen_seq_inc(len::Int,
 
         # GENERATE NEXT ELEMENT
         p = gen(ctx,tally,seen,A,B,E,U,)
-
+        nxt = p.symbol
+        
         # UPDATE SEQUENCE
         push!(preds,p)
-        push!(seq,p.symbol)
+        push!(seq,nxt)
 
         # UPDATE NGRAM TALLY
-        updatetally(tally,getngram(v,i)...)
+        updatetally(tally,nxt,ctx)
 
         # UPDATE SEEN ELEMENT SET
         push!(seen,nxt)
