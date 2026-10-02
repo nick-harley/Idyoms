@@ -586,12 +586,12 @@ relative_entropy(d::Distribution) = (hm=max_entropy(d); hm>0 ? entropy(d) / hm :
 relative_entropy(x::Prediction) = relative_entropy(x.distribution)
 
 # CALCULATE WEIGHT OF A DISTRIBUTION
-weight(d::Distribution,b::Int) = relative_entropy(d) ^ (-b)
-weight(x::Prediction,b::Int) = weight(x.distribution,b)
+weight(d::Distribution,b::Number) = relative_entropy(d) ^ (-b)
+weight(x::Prediction,b::Number) = weight(x.distribution,b)
 
 
 function combine_dist(ds::Vector{Distribution{T}},
-                      b::Int=0) where T
+                      b::Number=0) where T
 
     # RETURN WEIGHTED COMBINATION OF DISTRIBUTIONS
     
@@ -612,7 +612,7 @@ function combine_dist(ds::Vector{Distribution{T}},
 end
 
 function combine_dist(ps::Vector{Prediction{T}},
-                      b::Int=0) where T
+                      b::Number=0) where T
 
     # RETURN WEIGHTED COMBINATION OF PREDICTION DISTRIBUTIONS
     
@@ -635,7 +635,7 @@ end
 Model{T} = Vector{Vector{Prediction{T}}}
 
 
-function combine_predictions(ps::Vector{Vector{Prediction{T}}},b::Int) where T
+function combine_predictions(ps::Vector{Vector{Prediction{T}}},b::Number) where T
 
     # COMBINE SEQUENCE PREDICTIONS
     
@@ -643,7 +643,7 @@ function combine_predictions(ps::Vector{Vector{Prediction{T}}},b::Int) where T
 
 end
 
-function combine_predictions(pss::Vector{Vector{Vector{Prediction{T}}}},b::Int) where T
+function combine_predictions(pss::Vector{Vector{Vector{Prediction{T}}}},b::Number) where T
 
     # COMBINE A VECTOR OF SEQUENCE PREDICTIONS
     
@@ -872,7 +872,7 @@ function ppm_both(data::Vector{View{S,T}},
                   U::Bool,
                   O::OrderBound,
                   nfolds::Int=10,
-                  b::Int=0) where {S,T}
+                  b::Number=0) where {S,T}
 
     # RETURN COMBINED LTM AND STM PREDICTIONS FOR A DATASET
     
@@ -889,7 +889,7 @@ function ppm_both_plus(data::Vector{View{S,T}},
                        U::Bool,
                        O::OrderBound,
                        nfolds::Int=10,
-                       b::Int=0) where {S,T}
+                       b::Number=0) where {S,T}
 
     # RETURN COMBINED LTM+ AND STM PREDICTIONS FOR A DATASET
     
